@@ -1,0 +1,62 @@
+name: Build BadSuccessor
+
+# Only runs when manually triggered
+on:
+  workflow_dispatch:
+    inputs:
+      configuration:
+        description: 'Build Configuration'
+        required: true
+        default: 'Release'
+        type: choice
+        options: [Debug, Release]
+      framework:
+        description: '.NET Framework Version'
+        required: true
+        default: 'v4.6.1'
+        type: string
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download .NET Targeting Pack
+      if: inputs.framework == 'v4.6.1'
+      uses: suisei-cn/actions-download-file@master
+      with:
+        url: https://download.microsoft.com/download/F/1/D/F1DEB8DB-D277-4EF9-9F48-3A65D4D8F965/NDP461-DevPack-KB3105179-ENU.exe
+        target: .
+
+    - name: Install .NET 4.6.1 Targeting Pack
+      if: inputs.framework == 'v4.6.1'
+      shell: cmd
+      run: NDP461-DevPack-KB3105179-ENU.exe /q /norestart
+
+    # Add more frameworks here if needed (e.g. 4.7.2, 4.8)
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Restore packages (if any)
+      run: nuget restore BadSuccessor.sln || echo "No .sln or packages to restore"
+
+    - name: Build
+      run: >
+        msbuild BadSuccessor.sln
+        /p:Configuration=${{ inputs.configuration }}
+        /p:TargetFrameworkVersion=${{ inputs.framework }}
+        /p:Platform="Any CPU"
+        /t:Rebuild
+        /v:m
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: BadSuccessor-${{ inputs.configuration }}-${{ inputs.framework }}
+        path: |
+          **/bin/${{ inputs.configuration }}/*.exe
+          **/bin/${{ inputs.configuration }}/*.dll
